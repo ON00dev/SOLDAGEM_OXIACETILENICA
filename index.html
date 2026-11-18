@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Laboratório virtual 3D de soldagem oxiacetilênica (OAW) — simulador didático interativo" />
+  <title>Laboratório Virtual — Soldagem Oxiacetilênica (OAW)</title>
+  <link rel="stylesheet" href="/src/styles/main.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== Barra superior ===== -->
+    <header id="topbar">
+      <div class="brand">
+        <span class="brand-flame" aria-hidden="true"></span>
+        <div class="brand-text">
+          <strong>Laboratório Virtual — Soldagem Oxiacetilênica</strong>
+          <small>OAW · Oxyacetylene Welding · recurso didático</small>
+        </div>
+      </div>
+      <div class="top-actions">
+        <label class="top-select">
+          <span>Qualidade</span>
+          <select id="quality-select" title="Qualidade gráfica">
+            <option value="low">Baixa</option>
+            <option value="medium" selected>Média</option>
+            <option value="high">Alta</option>
+          </select>
+        </label>
+        <label class="top-select">
+          <span>Câmera</span>
+          <select id="camera-select" title="Posição da câmera"></select>
+        </label>
+        <label class="top-select">
+          <span>Modo</span>
+          <select id="mode-select" title="Modo de aprendizagem">
+            <option value="explain">Explicação</option>
+            <option value="demo" selected>Demonstração</option>
+            <option value="practice">Prática</option>
+          </select>
+        </label>
+        <button id="btn-audio" class="top-btn" title="Som da chama (Web Audio)">🔇</button>
+        <button id="btn-presenter" class="top-btn accent" title="Modo apresentador (P)">Modo Apresentador</button>
+      </div>
+    </header>
+
+    <!-- ===== Painel esquerdo: módulos ===== -->
+    <aside id="panel-left">
+      <div class="panel-title">Módulos</div>
+      <nav id="module-nav" aria-label="Navegação de módulos"></nav>
+      <div class="panel-progress">
+        <div class="panel-title small">Progresso</div>
+        <div id="progress-list"></div>
+      </div>
+    </aside>
+
+    <!-- ===== Área central: simulação ===== -->
+    <main id="stage">
+      <div id="viewport"></div>
+      <div id="label-layer"></div>
+
+      <div id="caption" class="hidden">
+        <span id="caption-step"></span>
+        <p id="caption-text"></p>
+      </div>
+
+      <div id="hud">
+        <div id="hud-flame" class="hud-chip">Chama: —</div>
+        <div id="hud-speed" class="hud-chip">Avanço: —</div>
+        <div id="hud-note" class="hud-chip warn">Simulação ilustrativa — não substitui regulagem real de equipamento</div>
+      </div>
+
+      <div id="practice-panel" class="hidden">
+        <div class="practice-title">Modo Prática</div>
+        <p class="practice-hint">Ajuste os parâmetros no painel direito e inicie a passada. A avaliação é didática — não representa qualificação profissional.</p>
+        <div id="practice-result"></div>
+      </div>
+
+      <div id="compare-labels" class="hidden">
+        <div class="compare-a">Lado A — Soldagem à esquerda (forehand)</div>
+        <div class="compare-b">Lado B — Soldagem à direita (backhand)</div>
+      </div>
+    </main>
+
+    <!-- ===== Painel direito: conteúdo ===== -->
+    <aside id="panel-right">
+      <div id="right-tabs">
+        <button data-tab="info" class="active">Informação</button>
+        <button data-tab="controls">Controles</button>
+        <button data-tab="refs">Referências</button>
+      </div>
+      <div class="panel-scroll">
+        <section id="tab-info"></section>
+        <section id="tab-controls" class="hidden"></section>
+        <section id="tab-refs" class="hidden"></section>
+      </div>
+    </aside>
+
+    <!-- ===== Barra inferior: transporte ===== -->
+    <footer id="transport">
+      <div class="transport-buttons">
+        <button id="btn-restart" title="Reiniciar (R)">⟲ Reiniciar</button>
+        <button id="btn-prev" title="Etapa anterior (←)">⏮ Anterior</button>
+        <button id="btn-play" title="Iniciar/Pausar (Espaço)">▶ Iniciar</button>
+        <button id="btn-next" title="Próxima etapa (→)">Próxima ⏭</button>
+      </div>
+      <div class="transport-middle">
+        <div id="step-chips"></div>
+      </div>
+      <div class="transport-right">
+        <label class="speed-ctl">
+          <span>Velocidade</span>
+          <select id="speed-select" title="Velocidade da animação">
+            <option value="0.25">0,25× (câmera lenta)</option>
+            <option value="0.5">0,5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+          </select>
+        </label>
+        <button id="btn-labels" class="top-btn" title="Exibir/ocultar identificadores (L)">Etiquetas: ON</button>
+      </div>
+    </footer>
+
+    <!-- Encerramento / sobreposição de inicialização -->
+    <div id="splash">
+      <div class="splash-card">
+        <h1>Laboratório Virtual de Soldagem Oxiacetilênica</h1>
+        <p class="splash-sub">OAW — demonstrações 3D interativas das técnicas, chamas, brasagem, defeitos e segurança.</p>
+        <p class="splash-warn">
+          ⚠️ Ambiente educacional. As simulações são <strong>ilustrativas e aproximadas</strong>:
+          não reproduzem regulagens reais de pressão de gás e não substituem treinamento
+          supervisionado nem as normas de segurança aplicáveis.
+        </p>
+        <button id="btn-start">Iniciar laboratório</button>
+        <p class="splash-tech">WebGL · Three.js · GLSL · Web Audio · Vite</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
