@@ -21,6 +21,7 @@ app.stage = new Stage(viewport, labelLayer);
 app.world = new THREE.Group();
 app.stage.scene.add(app.world);
 app.director = new CameraDirector(app.stage);
+app.stage.director = app.director; // libera a órbita manual do usuário (arrastar/zoom)
 app.audio = new FlameAudio();
 
 // --- ambiente ---

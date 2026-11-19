@@ -283,9 +283,13 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
     this.rodModeNone();
   }
 
+  get flameOn() { return !this.done && (this.cfg.running || this.flameHold); }
+
   reset() {
     this.progress = 0;
     this.done = false;
+    this.flameHold = false;
+    this.torch.flame.intensity = 0;
     this.metrics = { samples: [], burnThrough: false, startedAt: null, flameTime: { neutral: 0, oxidizing: 0, carburizing: 0 } };
     this._meltTimer = 0;
     this.heat.reset();
@@ -313,7 +317,7 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
       this.update(dt);
       acc += dt;
     }
-    this.cfg.running = saved;
+    this.cfg.running = saved && !this.done;
   }
 
   /* ================= simulação ================= */
@@ -325,6 +329,7 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
   update(dt) {
     const cfg = this.cfg;
     const t = performance.now() / 1000;
+    let completed = false;
 
     // --- avanço do maçarico ---
     if (cfg.running && !this.done) {
@@ -332,7 +337,9 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
       if (this.progress >= 1) {
         this.done = true;
         cfg.running = false;
-        this.onDone?.();
+        this.flameHold = false;
+        this.torch.flame.intensity = 0;
+        completed = true;
       }
       // amostragem de métricas (modo prática)
       if (this.metrics.startedAt !== null) {
@@ -353,6 +360,7 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
       if (src.power > 0) this.heat.inject(x, weaveZ, src.radiusCells, src.power * ddt);
     });
     this.#updateVisuals(dt, x, weaveZ);
+    if (completed) this.onDone?.();
   }
 
   /**
@@ -366,7 +374,7 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
     // Calibração (ver scripts/calibrate.mjs): chama neutra + velocidade ≈16–20
     // → fusão completa sem perfuração; velocidade ≥26 → falta de fusão;
     // bico muito próximo (≤6) → superaquecimento/perfuração; distante (≥16) → frio.
-    const power = 11.5 * cfg.flamePower * falloff * ((cfg.running || this.flameHold === true) ? 1 : 0);
+    const power = this.flameOn ? 11.5 * cfg.flamePower * falloff : 0;
     const radiusCells = 2.0 + cfg.standoff * 0.09 + (this.torch.flame.type === 'carburizing' ? 0.6 : 0);
     return { power, radiusCells };
   }
@@ -376,17 +384,9 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
     const cfg = this.cfg;
     const topY = this.thick;
 
+    this.torch.flame.intensity = damp(this.torch.flame.intensity, this.flameOn ? 1 : 0, 8, dt);
     // posicionamento manual (ex.: aproximação coreografada)
-    if (cfg.manualTorch) {
-      const on = (cfg.running || this.flameHold === true) ? 1 : 0;
-      this.torch.flame.intensity = damp(this.torch.flame.intensity, on, 8, dt);
-      return;
-    }
-
-    // chama: acionamento suave (intensidade controla opacidade e luz)
-    const flameOn = (cfg.running || this.flameHold === true) ? 1 : 0;
-    this.torch.flame.group.visible = true;
-    this.torch.flame.intensity = damp(this.torch.flame.intensity, flameOn, 8, dt);
+    if (cfg.manualTorch) return;
 
     this.torch.place(this._v3a.set(x, topY, weaveZ), cfg.standoff, cfg.lean, 0);
 
@@ -434,7 +434,7 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
     const poolHalf = 4 + poolT * 5;
     let dirty = false;
     const ftype = this.torch.flame.type;
-    const active = this.cfg.running || this.flameHold;
+    const active = this.flameOn;
     for (let i = 0; i < BEAD_COUNT; i++) {
       const bx = SEAM_START + i * spacing;
       const dd = Math.abs(bx - x);
@@ -493,7 +493,7 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
     }
 
     // ----- oxidação acumulada (chama oxidante) -----
-    if (this.torch.flame.type === 'oxidizing' && (this.cfg.running || this.flameHold)) {
+    if (this.torch.flame.type === 'oxidizing' && active) {
       this.cfg.oxLevel = Math.min(1, this.cfg.oxLevel + dt * 0.05);
     }
     // tempo de exposição por tipo de chama (insumo da avaliação prática)
@@ -510,7 +510,7 @@ totalEmissiveRadiance += vHeatGlow * smoothstep(0.28, 0.92, vHeatVal) * 1.5;`);
 
     // ----- luz da chama -----
     const fl = flicker(performance.now() / 1000, 0.2);
-    this.torch.setFlameIntensity((this.cfg.running || this.flameHold ? 1 : 0) * fl);
+    this.torch.setFlameIntensity(this.torch.flame.intensity * fl);
   }
 
   #updateSparks(dt, x, z, topY, poolT) {

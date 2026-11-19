@@ -439,10 +439,6 @@ export const MODULES = [
         enter: (c) => {
           for (const st of c.stations) st.cfg.running = true;
         },
-        during: (c) => {
-          // garante execução sincronizada (pausa em conjunto pelas mesmas etapas)
-          for (const st of c.stations) st.cfg.running = true;
-        },
         caption: 'Passadas simultâneas: observe a posição da vareta (à frente no A, atrás no B) e a distribuição do calor — no B o cone aquece a poça e o cordão.'
       },
       {
@@ -683,7 +679,9 @@ export const MODULES = [
         title: 'Preenchimento completo',
         dur: 4,
         camera: 'braze',
-        during: (c) => { c.rig.set({ flow: 1, heatLevel: 0.82, alloy: 1 }); },
+        enter: (c) => {
+          c.rig.set({ flow: 1, heatLevel: 0.82, alloy: 1, torch: { x: 0, standoff: 14, lean: 30, on: false } });
+        },
         caption: 'Folga preenchida ao longo da conexão — a união depende da continuidade do preenchimento capilar.'
       },
       {
@@ -757,7 +755,6 @@ export const MODULES = [
           st.metrics.startedAt = 0;
           c.app.director.set('side', true);
         },
-        during: (c) => { c.st().cfg.running = true; },
         caption: '<strong>Referência</strong>: velocidade, distância, alimentação e chama adequadas — cordão contínuo e fusão ao longo da junta.'
       },
       {
@@ -770,7 +767,6 @@ export const MODULES = [
           st.cfg.speed = 45; st.cfg.running = true;
           st.metrics.startedAt = 0;
         },
-        during: (c) => { c.st().cfg.running = true; },
         caption: '<strong>Velocidade excessiva</strong>: a energia por comprimento é insuficiente — trechos sem fusão e cordão intermitente (observe a trilha térmica estreita).'
       },
       {
@@ -783,7 +779,6 @@ export const MODULES = [
           st.cfg.speed = 8; st.cfg.running = true;
           st.metrics.startedAt = 0;
         },
-        during: (c) => { c.st().cfg.running = true; },
         caption: '<strong>Velocidade muito baixa</strong>: excesso de calor na mesma região — poça cresce e, em chapa fina, pode <strong>perfurar</strong> o material (burn-through).'
       },
       {
@@ -796,7 +791,6 @@ export const MODULES = [
           st.cfg.speed = 16; st.cfg.standoff = 26; st.cfg.running = true;
           st.metrics.startedAt = 0;
         },
-        during: (c) => { c.st().cfg.running = true; },
         caption: '<strong>Bico distante</strong>: a energia que chega à peça cai fortemente com a distância — aquecimento fraco, poça difícil de manter e fusão incompleta.'
       },
       {
@@ -812,7 +806,6 @@ export const MODULES = [
           st.metrics.startedAt = 0;
           c.app.director.set('top', true);
         },
-        during: (c) => { c.st().cfg.running = true; },
         caption: '<strong>Alimentação irregular</strong>: cordão com volume alternado — geométrica e visualmente descontínuo, com possíveis descontinuidades internas.'
       },
       {
@@ -828,7 +821,6 @@ export const MODULES = [
           st.cfg.running = true;
           st.metrics.startedAt = 0;
         },
-        during: (c) => { c.st().cfg.running = true; },
         caption: '<strong>Chama oxidante</strong> em soldagem de aço-carbono: excesso de O₂ favorece oxidação — observe as escamas escuras na zona aquecida (efeito ilustrativo).'
       }
     ],
@@ -895,20 +887,19 @@ export const MODULES = [
       {
         title: 'Proteção individual (NR-06)',
         dur: 8,
-        camera: 'side',
+        camera: 'operator',
         enter: (c) => {
-          c.tags.showOnly(['epi']);
-          c.app.director.set('side', true);
+          c.tags.showOnly(['epi', 'gloves']);
         },
         caption: 'Proteção ocular com filtro apropriado, luvas de raspa e vestimenta adequada — exigências amparadas pela <strong>NR-06</strong> (EPIs).'
       },
       {
         title: 'Ventilação e fumos metálicos (NR-15)',
         dur: 8,
-        camera: 'overview',
+        camera: 'ventilation',
+        showFumes: true,
         enter: (c) => {
-          c.tags.showOnly(['vent']);
-          c.app.director.set('overview', true);
+          c.tags.showOnly(['vent', 'fumes']);
         },
         caption: 'Ventilação e controle de fumos na zona de respiração — limites e agentes ambientais tratados na <strong>NR-15</strong>.'
       },
@@ -935,10 +926,9 @@ export const MODULES = [
       {
         title: 'Inspeção e organização',
         dur: 8,
-        camera: 'overview',
+        camera: 'ventilation',
         enter: (c) => {
           c.tags.showOnly(['hose', 'area']);
-          c.app.director.set('overview', true);
         },
         caption: 'Inspeção de mangueiras, conexões e bico antes do uso; bancada organizada e área sinalizada. Segurança é parte do procedimento, não um acessório.'
       }

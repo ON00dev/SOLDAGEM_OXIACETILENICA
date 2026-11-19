@@ -16,6 +16,7 @@ export class CameraDirector {
     this._tracking = null;   // função que retorna {pos, look}
     this._lerpK = 3.2;
     this._userFree = false;
+    this._released = false; // true quando o usuário assumiu a órbita manualmente
   }
 
   /** Definições expostas ao seletor de câmera da UI */
@@ -28,6 +29,8 @@ export class CameraDirector {
     { id: 'pool', label: 'Poça de fusão (acompanhamento)' },
     { id: 'chase', label: 'Acompanhamento do maçarico' },
     { id: 'compare', label: 'Comparação lado A / lado B' },
+    { id: 'operator', label: 'Segurança — operador e EPIs' },
+    { id: 'ventilation', label: 'Segurança — ventilação e fumos' },
     { id: 'cylinders', label: 'Cilindros de gás' },
     { id: 'extinguisher', label: 'Área de prevenção de incêndio' },
     { id: 'braze', label: 'Brasagem — visão geral' },
@@ -41,6 +44,7 @@ export class CameraDirector {
   set(id, immediate = false) {
     this.mode = id;
     this._tracking = null;
+    this._released = false; // escolher preset re-engaja o controle automático
     const c = this.camera, look = this.controls.target;
     const setCam = (pos, tgt, k = 3.2) => {
       this._tracking = null;
@@ -66,6 +70,12 @@ export class CameraDirector {
       case 'compare':
         setCam(new THREE.Vector3(0, 250, 600), new THREE.Vector3(0, 12, 0), 2.2);
         break;
+      case 'operator':
+        setCam(new THREE.Vector3(-40, 60, 24), new THREE.Vector3(-25, 28, -99), 2.5);
+        break;
+      case 'ventilation':
+        setCam(new THREE.Vector3(-29, 74, 103), new THREE.Vector3(35, 19, -81), 2.5);
+        break;
       case 'cylinders':
         setCam(new THREE.Vector3(-60, 80, 90), new THREE.Vector3(-130, 45, -120), 2.5);
         break;
@@ -90,6 +100,12 @@ export class CameraDirector {
     }
   }
 
+  /** devolve a câmera ao controle manual do usuário (arrastar/zoom) */
+  release() { this._released = true; }
+
+  /** re-engaja o controle automático de câmera (após escolher preset) */
+  reengage() { this._released = false; }
+
   /** Câmeras de acompanhamento seguem a âncora informada pelo módulo */
   _applyTracking(snap = false) {
     const a = this.anchor;
@@ -113,12 +129,15 @@ export class CameraDirector {
   update(dt) {
     if (this._tracking) this._applyTracking();
     const c = this.camera;
-    const k = 1 - Math.exp(-this._lerpK * dt * 60 * 0.02 * 60); // suavização estável
-    c.position.lerp(this._targetPos, this._tracking ? Math.min(1, dt * 3.0) : Math.min(1, dt * this._lerpK));
-    // target: aproxima suavemente
-    const tgt = this.controls.target;
-    tgt.lerp(this._targetLook, this._tracking ? Math.min(1, dt * 3.0) : Math.min(1, dt * this._lerpK));
-    if (this._tracking) c.lookAt(tgt);
+    // sem liberação manual: a câmera segue suavemente o preset/acompanhamento
+    if (!this._released) {
+      const k = 1 - Math.exp(-this._lerpK * dt * 60 * 0.02 * 60); // suavização estável
+      c.position.lerp(this._targetPos, this._tracking ? Math.min(1, dt * 3.0) : Math.min(1, dt * this._lerpK));
+      // target: aproxima suavemente
+      const tgt = this.controls.target;
+      tgt.lerp(this._targetLook, this._tracking ? Math.min(1, dt * 3.0) : Math.min(1, dt * this._lerpK));
+      if (this._tracking) c.lookAt(tgt);
+    }
   }
 }
 

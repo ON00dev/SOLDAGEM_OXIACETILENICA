@@ -80,7 +80,6 @@ export class UI {
       b.classList.toggle('active', b.dataset.id === id));
 
     this.app.ctrl.load(def);
-    this.#attachStationHooks();
 
     this.#renderInfo(def);
     this.#renderControls(def);
@@ -362,6 +361,7 @@ export class UI {
   setMode(mode) {
     this.mode = mode;
     const ctrl = this.app.ctrl;
+    ctrl.mode = mode;
     if (mode === 'explain') {
       ctrl.pause();
       this.app.director.set('overview', true);
@@ -391,9 +391,6 @@ export class UI {
     this.$('practice-result').innerHTML =
       '<span style="color:var(--accent)">● Passada em execução…</span><br>' +
       '<span style="color:var(--text-dim)">Você pode ajustar os parâmetros durante a passada — as alterações afetam a simulação imediatamente.</span>';
-    this.app.ctrl.togglePlayIfIdle?.();
-    this.app.ctrl.stations[0].cfg.running = true;
-    this.$('btn-play').textContent = '⏸ Pausar';
   }
 
   finishPractice() {
@@ -402,6 +399,7 @@ export class UI {
     if (!st) return;
     st.cfg.running = false;
     ctrl.stopPractice();
+    this.onPlayState(ctrl);
     const r = ctrl.evaluatePractice();
     if (!r) return;
     const gradeColor = r.grade === 'Boa' ? 'var(--ok)' : r.grade === 'Regular' ? '#e0a63c' : 'var(--danger)';
@@ -419,6 +417,7 @@ export class UI {
     this.$('practice-result').innerHTML =
       `<div class="practice-score">${r.score}<span style="font-size:13px;color:var(--text-dim)"> / 100</span></div>
        <div class="practice-grade" style="color:${gradeColor};border-color:${gradeColor}">Condição da solda: ${r.grade}</div>
+       <div class="param-help" style="margin-bottom:6px">Condições da passada — avanço ≈ ${r.conditions?.speed?.toFixed(0) ?? 0} u/s · distância ≈ ${r.conditions?.standoff?.toFixed(0) ?? 0} · chama ${r.conditions?.flame ?? '—'} · vareta ≈ ${r.conditions?.feed?.toFixed(2).replace('.', ',') ?? '—'}.</div>
        ${items}
        <div class="param-help" style="margin-top:8px">⚠ Avaliação didática com base em critérios simplificados — não constitui qualificação profissional.</div>`;
   }

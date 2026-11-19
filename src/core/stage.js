@@ -39,6 +39,10 @@ export class Stage {
     this.controls.minDistance = 25;
     this.controls.maxDistance = 900;
     this.controls.target.set(0, 5, 0);
+    this.director = null;
+    // interação manual (arrastar/zoom) assume o controle da câmera
+    const onCanvasPointerDown = () => this.director?.release?.();
+    this.renderer.domElement.addEventListener('pointerdown', onCanvasPointerDown);
 
     this.clock = new THREE.Clock();
     this.timeScale = 1;
@@ -50,8 +54,8 @@ export class Stage {
     this.#buildLights();
     this.#buildRoom();
 
-    this._onResize = () => this.resize();
-    window.addEventListener('resize', this._onResize);
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(this.container);
     this.resize();
   }
 
@@ -158,11 +162,12 @@ export class Stage {
   }
 
   resize() {
-    const w = this.container.clientWidth || window.innerWidth;
-    const h = this.container.clientHeight || window.innerHeight;
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    if (!w || !h) return;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.renderer.setSize(w, h, false);
     this.labelRenderer.setSize(w, h);
   }
 

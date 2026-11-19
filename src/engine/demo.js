@@ -1,7 +1,8 @@
 import { WeldStation } from '../sim/station.js';
 import { BrazeRig } from '../env/braze.js';
+import { connectHoses } from '../env/hoses.js';
+import { buildSafetyScene } from '../env/safety.js';
 import { TagSet, makeDirectionArrow } from './tags.js';
-import * as THREE from 'three';
 
 /**
  * Controlador de demonstrações: constrói o cenário do módulo, percorre as
@@ -35,14 +36,20 @@ export class DemoController {
     this.playing = false;
     this.snapshots = [];
     this.practiceRunning = false;
-    this.tags.hideAll();
     this.scenario = this.#buildScenario(def);
+    this.onScenarioBuilt?.();
     this.#enterStep(0);
   }
 
   #buildScenario(def) {
     const s = this.#buildScenarioInner(def);
-    this.onScenarioBuilt?.();
+    const torches = s.stations.map(st => st.torch);
+    const torch = s.rig?.torch ?? s.safety?.torch;
+    if (torch) torches.push(torch);
+    if (torches.length > 1) s.comparisonSupply = this.app.bench.addComparisonSupply();
+    s.hoses = torches.map((tool, index) => connectHoses(
+      this.app.world, index === 0 ? this.app.bench.outlets : s.comparisonSupply.outlets, tool
+    ));
     return s;
   }
 
@@ -58,9 +65,9 @@ export class DemoController {
         if (def.scenario === 'flame') {
           st.progress = 0.5; // chama no centro da junta
           const f = st.torch.flame;
-          this.tags.add('cone', 'Cone interno (maior temperatura)', f.cone, [0, -3.5, 0]);
-          this.tags.add('env', 'Envoltório externo', f.env, [0, -10.5, 0]);
-          this.tags.add('feather', 'Penacho — excesso de acetileno', f.feather, [0, -5, 0], 'orange');
+          this.tags.add('cone', 'Cone interno', f.cone, [-3.5, -2.7, 0]).center.set(1, 0.5);
+          this.tags.add('env', 'Envoltório externo', f.env, [4, -9.5, 0]).center.set(0, 0.5);
+          this.tags.add('feather', 'Penacho de acetileno', f.feather, [-4, -7.2, 0], 'orange').center.set(1, 0.5);
         }
         const arrow = makeDirectionArrow(st.group, (base.thick ?? 3) + 14);
         this.arrow = arrow;
@@ -81,14 +88,18 @@ export class DemoController {
       }
       case 'safety': {
         const scene = this.app.stage.scene;
-        this.tags.add('epi', 'EPI: óculos com filtro · luvas de raspa · vestimenta adequada (NR-06)', scene, [-120, 30, 80]);
-        this.tags.add('vent', 'Ventilação e controle de fumos metálicos (NR-15)', scene, [40, 240, -430]);
+        const safety = buildSafetyScene(world);
+        this.tags.add('epi', 'Óculos com filtro', safety.operator, [0, 120, 5]);
+        this.tags.add('gloves', 'Luvas de raspa', safety.operator, [12, 65, 36], 'orange');
+        this.tags.add('vent', 'Ventilador de exaustão', safety.fan, [0, 22, 0]);
+        this.tags.add('fumes', 'Fumos metálicos', safety.fumes, [40, 12, -53], 'orange');
         this.tags.add('ext', 'Extintor acessível · vigia de fogo (NR-23)', scene, [240, 62, -492], 'orange');
         this.tags.add('area', 'Área de trabalho organizada e sinalizada', scene, [10, 110, -470]);
         this.tags.add('cyl', 'Cilindros em pé e fixados', scene, [-130, 78, -120]);
         this.tags.add('arrest', 'Dispositivo contra retrocesso de chama', scene, [-108, 56, -128], 'orange');
         this.tags.add('hose', 'Mangueiras e conexões — inspecionar antes do uso', scene, [-100, 12, -112]);
-        return { kind: 'none', stations: [], rig: null };
+
+        return { kind: 'safety', stations: [], rig: null, safety };
       }
       default:
         return { kind: 'none', stations: [], rig: null };
@@ -97,6 +108,10 @@ export class DemoController {
 
   clearScenario() {
     if (!this.scenario) return;
+    this.tags.clear();
+    for (const hoses of this.scenario.hoses) hoses.dispose();
+    this.scenario.comparisonSupply?.group.removeFromParent();
+    this.scenario.safety?.dispose();
     for (const st of this.scenario.stations) {
       this.app.world.remove(st.group);
       st.torch.dispose?.();
@@ -105,7 +120,6 @@ export class DemoController {
       this.scenario.rig.torch.dispose?.();
       this.app.world.remove(this.scenario.rig.group);
     }
-    this.tags.hideAll();
     this.scenario = null;
   }
 
@@ -142,6 +156,13 @@ export class DemoController {
 
   play() {
     if (!this.module) return;
+    if (this.mode === 'practice') {
+      if (!this.practiceRunning) { this.app.ui?.startPractice(); return; }
+      this.stations[0].cfg.running = true;
+      this.playing = true;
+      this.app.ui?.onPlayState?.(this);
+      return;
+    }
     const last = (this.module.steps?.length ?? 0) - 1;
     if (last < 0) return;
     // se terminou, reinicia automaticamente
@@ -154,6 +175,7 @@ export class DemoController {
 
   pause() {
     this.playing = false;
+    if (this.mode === 'practice' && this.practiceRunning) this.stations[0].cfg.running = false;
     this.app.ui?.onPlayState?.(this);
   }
 
@@ -190,8 +212,10 @@ export class DemoController {
   #jumpTo(target) {
     // reconstrói o cenário e reproduz instantaneamente as etapas anteriores
     this.playing = false;
+    this.practiceRunning = false;
     this.clearScenario();
     this.scenario = this.#buildScenario(this.module);
+    this.onScenarioBuilt?.();
     for (let k = 0; k < target; k++) {
       try { this.module.steps[k]?.enter?.(this.ctx()); } catch { /* replay tolerante */ }
     }
@@ -231,12 +255,18 @@ export class DemoController {
 
     for (const st of this.stations) st.update(dt);
     this.rig?.update(dt, t);
+    this.scenario.safety?.update(dt, Boolean(step?.showFumes));
+    for (const hoses of this.scenario.hoses) hoses.update(dt);
 
     // auto-avanço de etapa
     if (this.playing && this.mode !== 'practice' && step?.dur && this.stepTime >= step.dur) {
       const last = this.module.steps.length - 1;
       if (this.stepIndex < last) this.next(true);
-      else { this.pause(); this.app.ui?.onDemoEnd?.(this); }
+      else {
+        for (const st of this.stations) st.cfg.running = false;
+        this.pause();
+        this.app.ui?.onDemoEnd?.(this);
+      }
     }
 
     // âncoras de câmera
@@ -257,8 +287,9 @@ export class DemoController {
     }
 
     // áudio
-    const on = this.stations[0]?.cfg.running || this.stations[0]?.flameHold || this.rig?.torchOn;
-    this.app.audio?.setFlame(on ? 0.8 : 0, this.stations[0]?.torch.flame.type ?? this.rig?.torch.flame.type ?? 'neutral');
+    const active = this.stations.find(st => st.flameOn);
+    const on = active || this.rig?.torchOn;
+    this.app.audio?.setFlame(on ? 0.8 : 0, active?.torch.flame.type ?? this.rig?.torch.flame.type ?? 'neutral');
   }
 
   /* ================= modo prática ================= */
@@ -274,15 +305,19 @@ export class DemoController {
     };
     st.reset();
     st.metrics.startedAt = 0;
-    st.configure({ ...cur, running: true });
+    st.configure({ ...cur, manualTorch: false, running: true });
     this.practiceRunning = true;
+    this.playing = true;
+    this.app.ui?.onPlayState?.(this);
     return true;
   }
 
   stopPractice() {
+    if (!this.practiceRunning) return;
     this.practiceRunning = false;
     const st = this.stations[0];
     if (st) st.configure({ running: false });
+    this.pause();
   }
 
   /** avaliação didática da passada (não é qualificação profissional) */
@@ -331,19 +366,19 @@ export class DemoController {
       visScore = 0;
     }
     if (b.carb >= 0.2) {
-      visual.push({ st: 'bad', t: 'Cordão carbonizado / poroso', d: `≈ ${pct(b.carb)}% do comprimento com aparência escura e porosa — chama carburante ou vareta superaquecida. Corrija a mistura da chama.` });
+      visual.push({ st: 'bad', t: 'Cordão carbonizado / poroso', d: `≈ ${pct(b.carb)}% do comprimento com aparência escura e porosa — chama carburante ou vareta superaquecida. Corrija a mistura da chama para evitar a carbonização.` });
       visScore -= 12;
     }
     if (b.ox >= 0.2) {
-      visual.push({ st: 'bad', t: 'Cordão oxidado (frágil)', d: `≈ ${pct(b.ox)}% do comprimento escurecido/acinzentado — chama oxidante destruiu o banho; o cordão fica quebradiço.` });
+      visual.push({ st: 'bad', t: 'Cordão oxidado (quebradiça / frágil)', d: `≈ ${pct(b.ox)}% do comprimento escurecido/acinzentado — chama oxidante destruiu o banho; o cordão fica quebradiço e fraco. Use a chama neutra.` });
       visScore -= 12;
     }
     if (b.cold >= 0.2) {
-      visual.push({ st: 'bad', t: 'Cordão fraco (fusão incompleta)', d: `≈ ${pct(b.cold)}% do comprimento depositado sobre metal não fundido — o cordão "encosta" sem se fundir: solda de baixa resistência. Mais calor local ou velocidade menor.` });
+      visual.push({ st: 'bad', t: 'Cordão fraco (fraqueza / falta de fusão)', d: `≈ ${pct(b.cold)}% do comprimento depositado sobre metal não fundido — o cordão "encosta" sem se fundir: solda fraca (baixa resistência). Aumente o calor local ou reduza a velocidade.` });
       visScore -= 12;
     }
     if (b.sunk >= 0.2) {
-      visual.push({ st: 'warn', t: 'Cordão deformado (rebaixado)', d: `≈ ${pct(b.sunk)}% do comprimento afundou pela Poça excessivamente fluida — aporte térmico alto demais para a espessura.` });
+      visual.push({ st: 'warn', t: 'Cordão deformado (rebaixado)', d: `≈ ${pct(b.sunk)}% do comprimento afundou pela poça excessivamente fluida — aporte térmico alto demais para a espessura; a solda pode ficar deformada.` });
       visScore -= 8;
     }
     if (b.deposited < 0.8) {
@@ -397,7 +432,17 @@ export class DemoController {
       coverage: cov,
       burnThrough: r.burnThrough,
       bead: r.bead,
-      flameShare: fs
+      flameShare: fs,
+      conditions: {
+        speed: r.speedMean,
+        feed: r.feedMean,
+        standoff: r.standMean,
+        flame: r.flame,
+        oxLevel: r.oxLevel,
+        flamePower: st.cfg.flamePower,
+        lean: st.cfg.lean,
+        weave: st.cfg.weave
+      }
     };
   }
 

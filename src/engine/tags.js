@@ -39,6 +39,14 @@ export class TagSet {
 
   hideAll() { this.showOnly([]); }
 
+  clear() {
+    for (const tag of Object.values(this.map)) {
+      tag.element.remove();
+      tag.removeFromParent();
+    }
+    this.map = {};
+  }
+
   setUserPref(v) {
     this.userPref = v;
     for (const k of ['torch', 'rod', 'pool', 'seam']) this.show(k, true);

@@ -2,8 +2,8 @@ import * as THREE from 'three';
 
 /**
  * Bancada de soldagem industrial: tampo metálico ripado, estrutura,
- * cilindros de gás com mangueiras coloridas (convenção: vermelha = acetileno,
- * verde = oxigênio) e válvulas de retenção (dispositivos contra retrocesso).
+ * cilindros de gás com conexões coloridas (vermelho = acetileno, azul = oxigênio)
+ * e válvulas de retenção (dispositivos contra retrocesso).
  */
 export function buildBench(scene) {
   const g = new THREE.Group();
@@ -56,7 +56,7 @@ export function buildBench(scene) {
 
   // ---------- Cilindros de gás ----------
   const cylinders = new THREE.Group();
-  const mkCylinder = (color, x, z, labelColor) => {
+  const mkCylinder = (color, x, gas) => {
     const cg = new THREE.Group();
     // corpo: lathe com ombro superior
     const pts = [];
@@ -83,36 +83,24 @@ export function buildBench(scene) {
     // dispositivo contra retrocesso de chama (válvula de segurança na saída)
     const arrestor = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 6, 12), new THREE.MeshStandardMaterial({ color: 0xd9b45a, roughness: 0.3, metalness: 0.9 }));
     arrestor.position.set(0, 112, 0);
+    const outlet = new THREE.Object3D();
+    outlet.name = gas;
+    outlet.position.y = 3;
+    arrestor.add(outlet);
     cg.add(body, valve, handwheel, arrestor);
-    cg.position.set(x, -59, z);
+    cg.position.set(x, -59, -128);
     // corrente de fixação dos cilindros (segurança)
     const chain = new THREE.Mesh(new THREE.TorusGeometry(14.5, 0.7, 6, 30), new THREE.MeshStandardMaterial({ color: 0x555a62, roughness: 0.6, metalness: 0.8 }));
     chain.rotation.x = Math.PI / 2;
     chain.position.y = 60;
     cg.add(chain);
     cylinders.add(cg);
-    return { cg, arrestor, y: 112 - 59 };
+    return outlet;
   };
 
-  // Acetileno (vermelho) e Oxigênio (verde) — cores das mangueiras seguem a mesma convenção
-  const ac = mkCylinder(0x8e1f1f, -150, -128, '#c84848');
-  const ox = mkCylinder(0x1f5c8e, -110, -128, '#3a8ac0');
-  cylinders.position.set(0, 0, 0);
+  const ac = mkCylinder(0x8e1f1f, -150, 'acetylene-outlet');
+  const ox = mkCylinder(0x1f5c8e, -110, 'oxygen-outlet');
   g.add(cylinders);
-
-  // Mangueiras até próximo da bancada (curvas suaves)
-  const hoseMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0.1 });
-  const mkHose = (from, to, color) => {
-    const mid = new THREE.Vector3().lerpVectors(from, to, 0.5);
-    mid.y = Math.min(from.y, to.y) - 14;
-    const curve = new THREE.CatmullRomCurve3([from, mid, to]);
-    const hose = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 1.5, 8), hoseMat(color));
-    hose.castShadow = true;
-    g.add(hose);
-  };
-  // partem das válvulas de segurança e descem para trás da bancada
-  mkHose(new THREE.Vector3(-150, 53, -128), new THREE.Vector3(-60, -50, -110), 0x8e1f1f);
-  mkHose(new THREE.Vector3(-110, 53, -128), new THREE.Vector3(-40, -50, -112), 0x1f5c8e);
 
   // Extintor na parede (módulo de segurança) — com suporte visível
   const ext = new THREE.Group();
@@ -135,5 +123,14 @@ export function buildBench(scene) {
   ext.rotation.z = 0.06;
   g.add(ext);
 
-  return { group: g, arrestors: [ac.arrestor, ox.arrestor], cylinders: cylinders.position };
+  return {
+    group: g,
+    outlets: [ac, ox],
+    addComparisonSupply() {
+      const group = cylinders.clone();
+      group.position.x += 355;
+      g.add(group);
+      return { group, outlets: [group.getObjectByName(ac.name), group.getObjectByName(ox.name)] };
+    }
+  };
 }

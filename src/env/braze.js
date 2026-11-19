@@ -198,11 +198,10 @@ ${GLSL_HEAT_RAMP}`)
 
   update(dt, t) {
     this.time = t;
-    this.torch.flame.update(dt, t);
     const on = this.torchOn ? 1 : 0;
     this.torch.flame.intensity = damp(this.torch.flame.intensity, on, 8, dt);
-    this.torch.setFlameIntensity(on * (0.8 + 0.3 * Math.sin(t * 21)));
-    this.torch.flameLight.intensity = on * (550 + 350 * this.heatLevel);
+    this.torch.flame.update(dt, t);
+    this.torch.flameLight.intensity = this.torch.flame.intensity * (550 + 350 * this.heatLevel);
   }
 
   /** estado completo serializável (snapshots do controlador) */
@@ -226,6 +225,7 @@ ${GLSL_HEAT_RAMP}`)
   }
 
   reset() {
+    this.torchOn = false;
     this.heatLevel = 0; this.flow = 0; this.alloy = 0;
     this.cutaway = false; this.sectionsVisible(false);
     this.rod.reset();

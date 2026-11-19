@@ -74,6 +74,7 @@ export function buildTorch(scene) {
 
   const hoseMatOx = new THREE.MeshStandardMaterial({ color: 0x1f5c8e, roughness: 0.85, metalness: 0.1 });
   const hoseMatAc = new THREE.MeshStandardMaterial({ color: 0x8e1f1f, roughness: 0.85, metalness: 0.1 });
+  const up = new THREE.Vector3(0, 1, 0);
   const mkTail = (side, mat) => {
     const pts = [
       new THREE.Vector3(0, 45.5, side * 0.9),
@@ -82,13 +83,16 @@ export function buildTorch(scene) {
       new THREE.Vector3(0, 52.2, side * 7.2)
     ];
     const curve = new THREE.CatmullRomCurve3(pts);
-    const tube = add(new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.85, 8), mat));
+    add(new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.85, 8), mat));
     const conn = add(new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 3, 8), steelM));
     conn.position.set(0, 52.6, side * 7.8);
-    return { tube, conn };
+    conn.quaternion.setFromUnitVectors(up, pts[3].clone().sub(pts[2]).normalize());
+    const outlet = new THREE.Object3D();
+    outlet.position.y = 1.5;
+    conn.add(outlet);
+    return outlet;
   };
-  mkTail(1, hoseMatOx);
-  mkTail(-1, hoseMatAc);
+  const inlets = [mkTail(-1, hoseMatAc), mkTail(1, hoseMatOx)];
 
   // --- Chama (shaders) presa ao bico ---
   const flame = new Flame();
@@ -103,6 +107,7 @@ export function buildTorch(scene) {
 
   const api = {
     group,
+    inlets,
     flame,
     flameLight,
     /**

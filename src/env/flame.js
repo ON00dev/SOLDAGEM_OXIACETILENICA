@@ -44,7 +44,7 @@ const flameVert = /* glsl */`
   }
 `;
 
-function flameFrag(baseColor, hotColor, opacity) {
+function flameFrag(opacity) {
   return /* glsl */`
     uniform float uTime;
     uniform float uOpacity;
@@ -65,9 +65,10 @@ function flameFrag(baseColor, hotColor, opacity) {
       float edge = abs(dot(normalize(vNormalW), normalize(vViewDir)));
       float soft = smoothstep(0.0, 0.55, edge);
       // perfil axial: base forte, ponta esvanece
-      float axial = (1.0 - smoothstep(0.55, 1.0, t)) * (0.35 + 0.65 * (1.0 - t));
+      float axial = (1.0 - smoothstep(0.65, 1.0, t)) * (0.55 + 0.45 * (1.0 - t));
       float a = ${opacity.toFixed(3)} * axial * soft * uOpacity;
       gl_FragColor = vec4(col, a);
+      #include <colorspace_fragment>
     }
   `;
 }
@@ -75,7 +76,7 @@ function flameFrag(baseColor, hotColor, opacity) {
 function makeFlameMaterial(hot, color, opacity) {
   return new THREE.ShaderMaterial({
     vertexShader: flameVert,
-    fragmentShader: flameFrag(color, hot, opacity),
+    fragmentShader: flameFrag(opacity),
     uniforms: {
       uTime: { value: 0 },
       uFlicker: { value: 1 },
@@ -85,7 +86,6 @@ function makeFlameMaterial(hot, color, opacity) {
     },
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide
   });
 }
@@ -101,12 +101,12 @@ export class Flame {
     this.group = new THREE.Group();
 
     // Cone interno: base alarga no bico, ápice para baixo
-    this.matCone = makeFlameMaterial(0xffffff, 0x9fc8ff, 0.95);
+    this.matCone = makeFlameMaterial(0xc6e2ff, 0x8bc5ff, 0.9);
     this.cone = new THREE.Mesh(lathe([[0.5, 0], [0.95, -0.6], [0.8, -2.2], [0.35, -4.4], [0.02, -6.2]]), this.matCone);
-    this.cone.renderOrder = 30;
+    this.cone.renderOrder = 31;
 
     // Envoltório externo
-    this.matEnv = makeFlameMaterial(0xdfeaff, 0x4a6cff, 0.32);
+    this.matEnv = makeFlameMaterial(0x3281ff, 0x3d61ff, 0.7);
     this.env = new THREE.Mesh(
       lathe([[0.6, 0], [1.5, -1.2], [2.1, -4], [2.2, -7.5], [1.7, -11.5], [0.9, -14.5], [0.05, -15.5]]),
       this.matEnv
@@ -114,12 +114,12 @@ export class Flame {
     this.env.renderOrder = 29;
 
     // Penacho de acetileno (só na carburante) — entre o cone e o envoltório
-    this.matFeather = makeFlameMaterial(0xfff6e0, 0xffe9b0, 0.5);
+    this.matFeather = makeFlameMaterial(0xe4efff, 0xf4eddb, 0.64);
     this.feather = new THREE.Mesh(
-      lathe([[0.4, -0.5], [0.75, -1.8], [0.6, -4], [0.3, -6.5], [0.02, -8.4]]),
+      lathe([[0.55, 0], [1.15, -1.8], [1.28, -4.5], [0.9, -8], [0.35, -11], [0.02, -12.5]]),
       this.matFeather
     );
-    this.feather.renderOrder = 31;
+    this.feather.renderOrder = 30;
 
     this.group.add(this.env, this.feather, this.cone);
     this.group.visible = false;
@@ -129,7 +129,7 @@ export class Flame {
     this.currentMix = 1.0;
 
     // comprimentos-alvo (escala y do mesh × comprimento base do perfil)
-    this._target = { cone: 1, env: 1, feather: 0 };
+    this._s = { cone: { l: 1, r: 1 }, env: { l: 1, r: 1 }, feather: { l: 0, r: 1 } };
     this.setMix(1.0);           // inicia na chama neutra
   }
 
@@ -145,7 +145,7 @@ export class Flame {
     if (m < 0.97) {
       // carburante: penacho cresce com o excesso de acetileno
       cone = 1.05; env = 1.12;
-      feather = clamp((0.97 - m) / 0.17, 0, 1);
+      feather = lerp(0.58, 1, (0.97 - m) / 0.17);
       coneR = 0.95; envR = 1.1; featherR = 1.0;
       this.type = 'carburizing';
     } else if (m > 1.08) {
@@ -161,14 +161,19 @@ export class Flame {
       this.type = 'neutral';
     }
     this._target = { cone, env, feather, coneR, envR, featherR };
+    // fatores de intensidade por camada, definidos pelo tipo de chama (didático):
+    //  - neutra:   cone + envoltório completos, sem penacho;
+    //  - oxidante: cone mais curto/compacto e envoltório mais fechado;
+    //  - carburante: penacho intermediário de acetileno predominante.
+    this._layer = this.type === 'oxidizing'
+      ? { cone: 0.85, env: 0.75, feather: 0 }
+      : this.type === 'carburizing'
+        ? { cone: 0.8, env: 0.85, feather }
+        : { cone: 1, env: 1, feather: 0 };
 
     // cores características
-    const cCone = new THREE.Color(m > 1.08 ? 0xcfe4ff : 0xffffff);
-    const cEnv = new THREE.Color(m > 1.08 ? 0x6f8dff : m < 0.97 ? 0x5a6cff : 0x4a6cff);
-    this.matCone.uniforms.uColor.value.copy(cCone);
-    this.matEnv.uniforms.uColor.value.copy(cEnv);
-    // penacho esbranquiçado e luminoso
-    this.matFeather.uniforms.uColor.value.set(0xffe9b0);
+    this.matCone.uniforms.uColor.value.set(m > 1.08 ? 0x9fccff : 0x8bc5ff);
+    this.matEnv.uniforms.uColor.value.set(m > 1.08 ? 0x5e83ff : m < 0.97 ? 0x546dff : 0x4268ff);
   }
 
   get typeName() { return { neutral: 'neutra', oxidizing: 'oxidante', carburizing: 'carburante' }[this.type] || '—'; }
@@ -185,24 +190,26 @@ export class Flame {
       mat.uniforms.uTime.value = t;
       mat.uniforms.uFlicker.value = fl;
     }
-    // aparição/apagamento suave
+    // aparição/apagamento suave + fatores de camada por tipo de chama
     this.intensity = clamp(this.intensity, 0, 1);
-    this.matCone.uniforms.uOpacity.value = this.intensity;
-    this.matEnv.uniforms.uOpacity.value = this.intensity;
-    this.matFeather.uniforms.uOpacity.value = this.intensity;
+    this.group.visible = this.intensity > 0.01;
+    const lf = this._layer;
+    this.matCone.uniforms.uOpacity.value = this.intensity * lf.cone;
+    this.matEnv.uniforms.uOpacity.value = this.intensity * lf.env;
+    this.matFeather.uniforms.uOpacity.value = this.intensity * lf.feather;
 
     // interpolação dos comprimentos
     const k = Math.min(1, dt * 6);
-    const s = (mesh, cur, tgt) => {
-      const v = lerp(cur, tgt, k);
-      mesh.scale.set(v.r, v.l, v.r);
-      return { l: v.l, r: v.r };
+    const s = (mesh, cur, length, radius) => {
+      cur.l = lerp(cur.l, length, k);
+      cur.r = lerp(cur.r, radius, k);
+      mesh.scale.set(cur.r, cur.l, cur.r);
     };
-    this._s = this._s || { cone: { l: 1, r: 1 }, env: { l: 1, r: 1 }, feather: { l: 0, r: 1 } };
-    this._s.cone = s(this.cone, this._s.cone, { l: this._target.cone, r: this._target.coneR });
-    this._s.env = s(this.env, this._s.env, { l: this._target.env, r: this._target.envR });
-    this._s.feather = s(this.feather, this._s.feather, { l: this._target.feather, r: this._target.featherR });
-    this.feather.visible = this._s.feather.l > 0.02 && this.intensity > 0.05;
+    const { cone, env, feather, coneR, envR, featherR } = this._target;
+    s(this.cone, this._s.cone, cone, coneR);
+    s(this.env, this._s.env, env, envR);
+    s(this.feather, this._s.feather, feather, featherR);
+    this.feather.visible = this._s.feather.l > 0.02 && (this.intensity * lf.feather) > 0.05;
   }
 
   /** ponto onde a chama "incide" no espaço local do maçarico (y negativo) */

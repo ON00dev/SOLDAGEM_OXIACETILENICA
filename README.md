@@ -55,7 +55,7 @@ Os testes usam Playwright (incluído como devDependency) em modo headless.
 
 - **Explicação** — passos manuais (Anterior/Próxima) com texto de apoio.
 - **Demonstração** — reprodução automática com play/pause/reiniciar, avanço por etapa, câmera lenta (0,25× a 2×) e retrocesso coerente via snapshots de simulação.
-- **Prática** — você controla velocidade, distância do bico, inclinação e alimentação da vareta em tempo real e recebe uma **avaliação didática** (cobertura da junta, regularidade, distância, alimentação, penalidades por perfuração/chama oxidante).
+- **Prática** — você controla velocidade, distância do bico, inclinação e alimentação da vareta em tempo real e recebe uma **avaliação didática** com nota (0–100) e condição final (**Boa** / **Regular** / **Ruim**), com critérios de fusão da junta, defeitos visuais do cordão (fraco, oxidado/quebradiça, carbonizado/poroso, deformado, irregular, perfuração), tipo de chama, avanço, distância bico–peça e alimentação.
 
 ## Controles
 
@@ -105,6 +105,27 @@ src/
 - Valores numéricos exibidos (~temperaturas, proporções de mistura) são **didáticos e aproximados**; confirmar em fonte técnica antes de uso formal.
 - Sem modelagem metalúrgica real (microestrutura, tensões residuais, distorção calculada).
 - Áudio sintetizado (Web Audio), não amostras reais.
+
+## Avaliação — modo Prática
+
+Ao encerrar a passada (`Encerrar e avaliar` ou conclusão automática), o laboratório gera uma **avaliação didática** com nota final de **0 a 100** e condição classificada como **Boa**, **Regular** ou **Ruim**.
+
+Critérios avaliados (peso em pontos):
+
+| Critério | Peso | Destaque |
+|---|---|---|
+| Fusão da junta (cobertura) | 25 | ≥ 92% fusão = Boa; ≥ 70% = Regular; abaixo = falta de fusão |
+| Defeitos visuais do cordão / integridade | 25 | Perfuração · fraco/fraqueza · oxidado/quebradiça · carbonizado/poroso · deformado/rebaixado · irregular/descontinuo |
+| Tipo de chama | 20 | Neutra ≥ 80% do tempo = Boa; oxidante/carburante = defeitos químicos |
+| Velocidade de avanço | 10 | Regularidade (variância) |
+| Distância bico–peça | 10 | Faixa didática ≈ 7–14 |
+| Alimentação de vareta | 10 | Regularidade |
+
+Penalidades: perfuração (burn-through) −10 · oxidação excessiva −5.
+
+A avaliação considera as **condições escolhidas pelo aluno** (avanço, distância, chama, vareta, inclinação, oscilação) e cruza com o **diagnóstico visual da solda** (fraqueza, quebra, carbonização, deformação, falta de fusão, perfuração). Nota final: ≥ 85 = **Boa** · ≥ 65 = **Regular** · < 65 = **Ruim**.
+
+> A nota é **didática**, com critérios simplificados — não constitui qualificação profissional.
 
 ## Referências (indicadas no aplicativo)
 

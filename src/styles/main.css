@@ -37,6 +37,7 @@ button, select { font-family: inherit; color: inherit; }
 
 #app {
   height: 100vh;
+  overflow: clip;
   display: grid;
   grid-template-columns: 252px 1fr 336px;
   grid-template-rows: 52px 1fr 62px;
@@ -374,7 +375,8 @@ button, select { font-family: inherit; color: inherit; }
 
 /* ---------------- Modo Apresentador ---------------- */
 body.presenter #app {
-  grid-template-columns: 0 1fr 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "top" "stage" "bottom";
 }
 body.presenter #panel-left,
 body.presenter #panel-right,
@@ -415,6 +417,24 @@ kbd {
   #app { grid-template-columns: 220px 1fr 300px; }
 }
 @media (max-width: 900px) {
-  #app { grid-template-columns: 200px 1fr; grid-template-areas: "top top" "left stage" "bottom bottom"; }
+  #app { grid-template-columns: 200px minmax(0, 1fr); grid-template-areas: "top top" "left stage" "bottom bottom"; }
   #panel-right { display: none; }
+  #topbar { gap: 10px; }
+  #topbar .brand, #topbar .brand-text { min-width: 0; }
+  #topbar .brand-flame { flex: none; }
+  #topbar .brand-text strong, #topbar .brand-text small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #topbar .top-select select { max-width: min(165px, 22vw); }
+}
+@media (max-width: 660px) {
+  #topbar .brand-text, #topbar .top-select > span { display: none; }
+  #topbar, #transport { padding-inline: 8px; }
+  #topbar .top-actions, #transport, .transport-buttons { gap: 4px; }
+  #topbar .top-select { padding-inline: 3px; }
+  .transport-buttons button { padding-inline: 6px; }
+  #btn-play { min-width: 76px; }
 }
